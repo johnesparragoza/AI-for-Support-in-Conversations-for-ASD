@@ -1,5 +1,5 @@
 # REU TXST Project 7
-# Utilizing AI to Support Communication in Individuals with ASD.
+# Utilizing AI to Support Conversation in Individuals with ASD.
 # Image to Narrative with multi modal architecture.
 
 This project implements an image captioning model using (mostly) BLIP-2 & MC-LLaVA. It is designed as an assistive tool to help individuals with Autism Spectrum Disorder (ASD) interpret and communicate visual scenes. The model generates descriptive captions for input images and is structured to allow future integration with a language model for narrative generation.

@@ -5,4 +5,3 @@ accelerate
 pillow
 gtts
 sentencepiece
-flash_attn

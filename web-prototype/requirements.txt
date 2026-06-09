@@ -1,7 +1,8 @@
 streamlit
-torch
+torchvision
 transformers
 accelerate
 pillow
 gtts
 sentencepiece
+flash_attn

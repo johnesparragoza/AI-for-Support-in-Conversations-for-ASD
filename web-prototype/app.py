@@ -54,15 +54,15 @@ uploaded_file = st.file_uploader(
 @st.cache_resource
 def load_model():
     model_id = "visheratin/MC-LLaVA-3b"
-    processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True, token=hf_token)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-        trust_remote_code=True
+        trust_remote_code=True,
+        token=hf_token,
+        attn_implementation="eager"  # <-- Bypasses the internal SDPA check causing the error
     ).to("cuda" if torch.cuda.is_available() else "cpu")
     return processor, model
-
-processor, model = load_model()
 
 # cleaner response code for TTS
 def clean_response(text, prompt):

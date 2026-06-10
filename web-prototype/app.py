@@ -89,6 +89,9 @@ if uploaded_file is not None: # open and display the uploaded image
     if not caption:
         caption = " "  # Avoid empty caption in prompt
 
+    # load the cached model and processor
+    processor, model = load_model()
+
     # build/edit prompt
     prompt = (
     "<|im_start|>user\n"

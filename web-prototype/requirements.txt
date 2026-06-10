@@ -1,7 +1,5 @@
-streamlit
+streamlit>=1.58.0
+transformers==4.41.2
+torch>=2.12.0
 torchvision
-transformers
-accelerate
 pillow
-gtts
-sentencepiece

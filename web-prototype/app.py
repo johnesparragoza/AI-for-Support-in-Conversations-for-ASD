@@ -5,6 +5,10 @@ from transformers import AutoProcessor, AutoModelForCausalLM
 import re
 from gtts import gTTS
 import io
+import os
+
+# fetch the token from Streamlit Secrets or environment variables
+hf_token = st.secrets.get("HF_TOKEN") or os.getenv("HF_TOKEN")
 
 # helper: fading function ---
 def get_faded_prompt(words, fade_level):

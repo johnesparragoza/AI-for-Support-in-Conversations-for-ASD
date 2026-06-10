@@ -1,5 +1,6 @@
 streamlit>=1.58.0
-transformers==4.41.2
+tokenizers>=0.20.0
+transformers>=4.45.2
 torch>=2.12.0
 torchvision
 pillow

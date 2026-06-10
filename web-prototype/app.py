@@ -53,8 +53,13 @@ uploaded_file = st.file_uploader(
 # load model and processor (cache to avoid reloading) 
 @st.cache_resource
 def load_model():
+    import transformers
+    if not hasattr(transformers.PreTrainedModel, "_supports_sdpa"):
+        transformers.PreTrainedModel._supports_sdpa = True
+
     model_id = "visheratin/MC-LLaVA-3b"
     processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True, token=hf_token)
+    
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,

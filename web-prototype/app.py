@@ -73,7 +73,7 @@ def clean_response(text, prompt):
 
 if uploaded_file is not None: # open and display the uploaded image
     image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="Your uploaded image", use_container_width=True)
+    st.image(image, caption="Your uploaded image", width='stretch')
     
     # caption input with tooltip
     caption = st.text_input(

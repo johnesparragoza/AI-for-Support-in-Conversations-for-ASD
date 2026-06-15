@@ -7,8 +7,15 @@ from gtts import gTTS
 import io
 import os
 
-# fetch the token from Streamlit Secrets or environment variables
-hf_token = st.secrets.get("HF_TOKEN") or os.getenv("HF_TOKEN")
+# fetch the token from environment variables (HF Spaces secrets) or Streamlit Secrets.
+# os.getenv is checked first because HF Spaces exposes secrets as env vars, and
+# st.secrets raises when no secrets.toml file exists (which is the case on Spaces).
+hf_token = os.getenv("HF_TOKEN")
+if not hf_token:
+    try:
+        hf_token = st.secrets.get("HF_TOKEN")
+    except Exception:
+        hf_token = None
 
 # helper: fading function ---
 def get_faded_prompt(words, fade_level):
@@ -65,6 +72,7 @@ def load_model():
         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
         trust_remote_code=True,
         token=hf_token,
+        low_cpu_mem_usage=True,  # keeps peak RAM near final size; matters on the 16GB CPU Space
         attn_implementation="eager"  # <-- Bypasses the internal SDPA check causing the error
     ).to("cuda" if torch.cuda.is_available() else "cpu")
     return processor, model

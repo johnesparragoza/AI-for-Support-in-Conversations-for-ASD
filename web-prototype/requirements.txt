@@ -1,9 +1,10 @@
 streamlit>=1.58.0
-# transformers 5.0 (Jan 2026) is a breaking release that drops APIs MC-LLaVA-3b's
-# 2024-era remote code relies on (and broke the AutoProcessor import). Stay on 4.x.
-transformers>=4.45.2,<5.0
-tokenizers>=0.20,<0.22
-torch>=2.12.0
+# Pin to the stack MC-LLaVA-3b's remote code was built against. transformers 4.5x+
+# entangles AutoProcessor with mistral_common (not installed), and 5.0 dropped APIs
+# the model needs. 4.45.2 is the author's stated floor and imports AutoProcessor cleanly.
+transformers==4.45.2
+tokenizers>=0.20,<0.21
+torch
 torchvision
 accelerate
 sentencepiece

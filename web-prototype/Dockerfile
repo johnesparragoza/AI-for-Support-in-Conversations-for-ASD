@@ -1,4 +1,6 @@
-FROM python:3.13.5-slim
+# Python 3.11 (not 3.13) so the 2024-era pinned stack has prebuilt wheels
+# and doesn't fall back to slow/failing source builds.
+FROM python:3.11-slim
 
 WORKDIR /app
 

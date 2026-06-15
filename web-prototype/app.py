@@ -97,44 +97,61 @@ if uploaded_file is not None: # open and display the uploaded image
     if not caption:
         caption = " "  # Avoid empty caption in prompt
 
-    # load the cached model and processor
-    processor, model = load_model()
+    # Streamlit reruns this whole script on every widget interaction — including
+    # the Fade buttons and the caption box. Without a guard, model.generate()
+    # (60s+ on CPU) would re-run on every click, greying out the page mid-rerun
+    # and making fading unusable. So we generate only when the image or caption
+    # actually changes, cache the narrative in session_state, and let fade clicks
+    # just re-render the cached text instantly.
+    file_id = getattr(uploaded_file, "file_id", None) or uploaded_file.name
+    narrative_key = (file_id, caption)
+    if st.session_state.get("narrative_key") != narrative_key:
+        # load the cached model and processor
+        processor, model = load_model()
 
-    # build/edit prompt
-    prompt = (
-    "<|im_start|>user\n"
-    "<image>\n"
-    "Describe this image with a single first-person sentence.\n"
-    "Make it short and simple, no more than 10 words.\n"
-    "Use first-person perspective (e.g., 'I see...', 'I feel...').\n"
-    f"Caption: {caption}\n"
-    "Narrative:\n"
-    "<|im_end|>\n"
-    "<|im_start|>assistant\n"
-        )
-    # preparing inputs for the model
-    inputs = processor(prompt, [image], model, return_tensors="pt")
-    inputs = {k: v.to(model.device) if torch.is_tensor(v) else v for k, v in inputs.items()}
-    # Generate narrative
-    with torch.no_grad():
-        output = model.generate(
-            **inputs,
-            max_new_tokens=64,
-            # KV caching re-enabled: requirements.txt pins the transformers 4.40
-            # stack, where past_key_values.seen_tokens still exists, so MC-LLaVA's
-            # remote code path works with the cache on. This is the speed win over
-            # the old use_cache=False workaround.
-            use_cache=True,
-            do_sample=False,
-            eos_token_id=processor.tokenizer.eos_token_id,
-            pad_token_id=processor.tokenizer.eos_token_id
-        )
-    generated_text = processor.tokenizer.decode(output[0], skip_special_tokens=True)
-    
-    # Extract only the generated narrative
-    narrative_parts = re.split(r"<\|im_start\|>assistant", generated_text)
-    narrative = narrative_parts[-1] if len(narrative_parts) > 1 else generated_text
-    narrative = narrative.replace("<|im_end|>", "").strip()
+        # build/edit prompt
+        prompt = (
+        "<|im_start|>user\n"
+        "<image>\n"
+        "Describe this image with a single first-person sentence.\n"
+        "Make it short and simple, no more than 10 words.\n"
+        "Use first-person perspective (e.g., 'I see...', 'I feel...').\n"
+        f"Caption: {caption}\n"
+        "Narrative:\n"
+        "<|im_end|>\n"
+        "<|im_start|>assistant\n"
+            )
+        # preparing inputs for the model
+        inputs = processor(prompt, [image], model, return_tensors="pt")
+        inputs = {k: v.to(model.device) if torch.is_tensor(v) else v for k, v in inputs.items()}
+        # Generate narrative
+        with st.spinner("Generating narrative… (first run also downloads the model, ~1 min)"):
+            with torch.no_grad():
+                output = model.generate(
+                    **inputs,
+                    max_new_tokens=64,
+                    # KV caching re-enabled: requirements.txt pins the transformers 4.40
+                    # stack, where past_key_values.seen_tokens still exists, so MC-LLaVA's
+                    # remote code path works with the cache on. This is the speed win over
+                    # the old use_cache=False workaround.
+                    use_cache=True,
+                    do_sample=False,
+                    eos_token_id=processor.tokenizer.eos_token_id,
+                    pad_token_id=processor.tokenizer.eos_token_id
+                )
+        generated_text = processor.tokenizer.decode(output[0], skip_special_tokens=True)
+
+        # Extract only the generated narrative
+        narrative_parts = re.split(r"<\|im_start\|>assistant", generated_text)
+        narrative = narrative_parts[-1] if len(narrative_parts) > 1 else generated_text
+        narrative = narrative.replace("<|im_end|>", "").strip()
+
+        st.session_state.narrative = narrative
+        st.session_state.narrative_key = narrative_key
+        st.session_state.fade_level = 0  # reset fading whenever a new narrative is made
+
+    # use the cached narrative; fade clicks reach here without regenerating
+    narrative = st.session_state.narrative
     words = narrative.split()
     
     # state for Fade Level

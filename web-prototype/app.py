@@ -120,11 +120,11 @@ if uploaded_file is not None: # open and display the uploaded image
         output = model.generate(
             **inputs,
             max_new_tokens=64,
-            # MC-LLaVA's remote code uses past_key_values.seen_tokens, removed in
-            # transformers >=4.41. Disabling the KV cache keeps past_key_values None
-            # so that (broken) code path is never hit. Slower, but avoids pinning the
-            # whole stack down to transformers 4.40 / numpy<2.
-            use_cache=False,
+            # KV caching re-enabled: requirements.txt pins the transformers 4.40
+            # stack, where past_key_values.seen_tokens still exists, so MC-LLaVA's
+            # remote code path works with the cache on. This is the speed win over
+            # the old use_cache=False workaround.
+            use_cache=True,
             do_sample=False,
             eos_token_id=processor.tokenizer.eos_token_id,
             pad_token_id=processor.tokenizer.eos_token_id

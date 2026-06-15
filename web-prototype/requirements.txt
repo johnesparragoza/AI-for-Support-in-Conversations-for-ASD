@@ -1,13 +1,16 @@
-streamlit>=1.58.0
-# Pin to the stack MC-LLaVA-3b's remote code was built against. transformers 4.5x+
-# entangles AutoProcessor with mistral_common (not installed), and 5.0 dropped APIs
-# the model needs. 4.45.2 is the author's stated floor and imports AutoProcessor cleanly.
-transformers==4.45.2
-tokenizers>=0.20,<0.21
-torch
-torchvision
-accelerate
-sentencepiece
-einops
-pillow
+# Full transformers 4.40 stack so MC-LLaVA-3b's remote code finds
+# past_key_values.seen_tokens (removed in 4.41+), which lets us re-enable the
+# KV cache (use_cache=True) in app.py for a real speed win. 4.40 + torch 2.2
+# require numpy<2, so numpy/pandas are pinned to a compatible 1.26 / 2.2 pair.
+streamlit>=1.58.0  # keep — needed for st.image(width='stretch')
+transformers==4.40.2
+tokenizers==0.19.1
+torch==2.2.2
+torchvision==0.17.2
+accelerate==0.30.1
+numpy==1.26.4
+pandas==2.2.3
+sentencepiece==0.2.0
+einops==0.7.0
+pillow==10.3.0
 gtts

@@ -40,7 +40,7 @@ st.markdown("""
         @import url('https://fonts.googleapis.com/css2?family=Chewy&display=swap');
     </style>
     <div style='text-align: center; padding: 2rem 0;'>
-        <h1 style="font-family: 'Chewy', cursive; color: #2E7D32;">Welcome to the AImage Narrator 🪄</h1>
+        <h1 style="font-family: 'Chewy', cursive; color: #2E7D32;">AImage Narrator 🪄</h1>
         <p style='font-size: 1.2rem;'>Upload your image and get a friendly, narrated description!</p>
     </div>
 """, unsafe_allow_html=True)

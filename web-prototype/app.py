@@ -189,7 +189,7 @@ if uploaded_file is not None: # open and display the uploaded image
     with st.expander("Show full narrative (for supporter/teacher use)"):
         st.info(narrative)
 else:
-    st.info("Please upload a jpg, jpeg, or png image to get started.")
+    st.info("Upload a picture you want to talk about! (jpg, jpeg, or png).")
 
 st.markdown("---")
 st.caption("Powered by MC-LLaVA-3b and Streamlit. For best results, use clear photos with obvious subjects!")

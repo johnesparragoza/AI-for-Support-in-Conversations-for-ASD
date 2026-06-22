@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# App code + Streamlit theme config
+# App code + Streamlit theme config + static assets
 COPY app.py ./
+COPY puzzle-buddy.png ./
 COPY .streamlit/ ./.streamlit/
 
 EXPOSE 8501

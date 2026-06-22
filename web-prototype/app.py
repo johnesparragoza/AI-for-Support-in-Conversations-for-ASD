@@ -45,8 +45,13 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# app tutorial — shown as steps inside a cloud illustration
-st.markdown("""
+# app tutorial — welcoming figure on the left, steps inside a cloud illustration on the right
+buddy_img = os.path.join(os.path.dirname(__file__), "puzzle-buddy.png")
+intro_left, intro_right = st.columns([1, 2], vertical_alignment="center")
+with intro_left:
+    st.image(buddy_img, width="stretch")
+with intro_right:
+    st.markdown("""
     <style>
         .tutorial-sky {
             background: transparent;
@@ -116,7 +121,7 @@ st.markdown("""
             </ul>
         </div>
     </div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # user uploads image 
 uploaded_file = st.file_uploader(

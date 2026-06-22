@@ -49,7 +49,7 @@ st.markdown("""
 st.markdown("""
     <style>
         .tutorial-sky {
-            background: linear-gradient(180deg, #E3F2FD 0%, #F1F8E9 100%);
+            background: transparent;
             padding: 2.5rem 1rem 3rem 1rem;
             border-radius: 24px;
             margin-bottom: 1.5rem;

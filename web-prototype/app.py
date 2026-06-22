@@ -45,13 +45,78 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# tooltips & help 
-with st.expander("What is this app?"):
-    st.write("""
-    This app helps you describe images in a simple way. 
-    You can upload a photo, get a short narrative, and practice filling in the blanks as words are faded out.
-    Great for conversation practice and social support!
-    """)
+# app tutorial — shown as steps inside a cloud illustration
+st.markdown("""
+    <style>
+        .tutorial-sky {
+            background: linear-gradient(180deg, #E3F2FD 0%, #F1F8E9 100%);
+            padding: 2.5rem 1rem 3rem 1rem;
+            border-radius: 24px;
+            margin-bottom: 1.5rem;
+        }
+        .cloud-card {
+            position: relative;
+            background: #ffffff;
+            border-radius: 90px;
+            padding: 2.2rem 2.6rem;
+            max-width: 480px;
+            margin: 0 auto;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+        }
+        /* fluffy puffs around the cloud */
+        .cloud-card::before {
+            content: "";
+            position: absolute;
+            z-index: -1;
+            background: #ffffff;
+            border-radius: 50%;
+            width: 95px; height: 95px;
+            top: -35px; left: 55px;
+            box-shadow: 130px -12px 0 12px #fff, 270px 4px 0 -6px #fff;
+        }
+        .cloud-card::after {
+            content: "";
+            position: absolute;
+            z-index: -1;
+            background: #ffffff;
+            border-radius: 50%;
+            width: 75px; height: 75px;
+            bottom: -28px; right: 60px;
+            box-shadow: -150px 16px 0 6px #fff, -320px 6px 0 -8px #fff;
+        }
+        .cloud-card h3 {
+            font-family: 'Chewy', cursive;
+            color: #2E7D32;
+            text-align: center;
+            margin: 0 0 1rem 0;
+        }
+        .cloud-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .cloud-steps li {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin: 0.55rem 0;
+            color: #37474F;
+        }
+        .cloud-steps li span {
+            margin-right: 0.5rem;
+        }
+    </style>
+    <div class='tutorial-sky'>
+        <div class='cloud-card'>
+            <h3>How it works ☁️</h3>
+            <ul class='cloud-steps'>
+                <li><span>📸</span>Upload a photo/file or take a picture!</li>
+                <li><span>✨</span>The AI model will create a short narrative.</li>
+                <li><span>✏️</span>Practice filling in the blanks as words fade out.</li>
+                <li><span>🎉</span>Enjoy!</li>
+            </ul>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
 
 # user uploads image 
 uploaded_file = st.file_uploader(

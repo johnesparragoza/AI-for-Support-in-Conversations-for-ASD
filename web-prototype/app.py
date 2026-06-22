@@ -109,10 +109,10 @@ st.markdown("""
         <div class='cloud-card'>
             <h3>How it works ☁️</h3>
             <ul class='cloud-steps'>
-                <li><span>📸</span>Upload a photo/file or take a picture!</li>
-                <li><span>✨</span>The AI model will create a short narrative.</li>
-                <li><span>✏️</span>Practice filling in the blanks as words fade out.</li>
-                <li><span>🎉</span>Enjoy!</li>
+                <li><span></span>Upload a photo/file or take a picture!</li>
+                <li><span></span>The AI model will create a short narrative.</li>
+                <li><span></span>Practice filling in the blanks as words fade out.</li>
+                <li><span></span>Enjoy!</li>
             </ul>
         </div>
     </div>

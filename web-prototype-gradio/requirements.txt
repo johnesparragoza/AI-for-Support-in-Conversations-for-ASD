@@ -1,0 +1,23 @@
+# ZeroGPU stack. The model path is kept identical to the working Streamlit
+# Space: transformers 4.40.2 is what makes MC-LLaVA-3b's remote code find
+# past_key_values.seen_tokens (removed in 4.41+), so KV caching works.
+# torch is bumped to 2.8.0 because ZeroGPU only supports torch >=2.8.
+spaces                 # HF ZeroGPU runtime (provides the @spaces.GPU decorator)
+# ZeroGPU's build recipe force-installs gradio[oauth]==4.44.0 (overriding the
+# README sdk_version), so we must make 4.44.0 work on the 2026 base image. That
+# image otherwise pulls fastapi 0.138 / starlette 1.3.x, but gradio 4.44.0 calls
+# the OLD starlette TemplateResponse(name, context) signature that 1.3.x removed
+# (=> "TypeError: unhashable type: 'dict'"). Pin the 2024-era web stack where the
+# old signature still works (verified: starlette 0.38.6 handles it). spaces 0.50.4
+# does not constrain fastapi/starlette, so these pins are safe.
+fastapi==0.115.0
+starlette==0.38.6
+torch==2.8.0
+transformers==4.40.2
+tokenizers==0.19.1
+accelerate==0.30.1
+numpy==1.26.4
+sentencepiece==0.2.0
+einops==0.7.0
+pillow==10.3.0
+gtts

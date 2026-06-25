@@ -1,64 +1,13 @@
 import os
 import re
-import sys
 import tempfile
-
-# Force line-buffered, flushed stdout/stderr so HF run logs show our boot
-# progress in real time even if the process later hangs or is killed during
-# startup (Python block-buffers stdout when not attached to a TTY).
-try:
-    sys.stdout.reconfigure(line_buffering=True)
-    sys.stderr.reconfigure(line_buffering=True)
-except Exception:
-    pass
-
-
-def _boot(msg):
-    # Write to stderr: HF Spaces run logs surface stderr reliably, whereas
-    # stdout can be swallowed by block buffering.
-    print(f"[BOOT] {msg}", file=sys.stderr, flush=True)
-
-
-_boot("starting imports")
 
 import gradio as gr
 import spaces  # HF ZeroGPU; this import is a no-op outside ZeroGPU environments
 import torch
-
-# --- ZeroGPU pins gradio==4.44.0 (its build recipe overrides README sdk_version),
-# and 4.44.0's bundled gradio_client 1.3.0 crashes get_api_info() with
-#   "TypeError: argument of type 'bool' is not iterable"
-# on gr.Image()'s boolean schema (additionalProperties: true|false). gradio #11084.
-# Short-circuit the schema->type converters on bool schemas. (The companion
-# starlette TemplateResponse incompatibility is fixed by pinning starlette in
-# requirements.txt, not here.)
-import gradio_client.utils as _gc_utils
-
-_orig_json_to_py = _gc_utils._json_schema_to_python_type
-_orig_get_type = _gc_utils.get_type
-
-
-def _safe_json_to_py(schema, defs=None):
-    if isinstance(schema, bool):
-        return "bool"
-    return _orig_json_to_py(schema, defs)
-
-
-def _safe_get_type(schema):
-    if isinstance(schema, bool):
-        return "bool"
-    return _orig_get_type(schema)
-
-
-_gc_utils._json_schema_to_python_type = _safe_json_to_py
-_gc_utils.get_type = _safe_get_type
-_boot("gradio_client patched")
-
 from gtts import gTTS
 from PIL import Image
 from transformers import AutoProcessor, AutoModelForCausalLM
-
-_boot("imports complete")
 
 # HF Spaces exposes secrets as env vars. The token is optional (the model is
 # public) but we pass it through if present to avoid any rate limiting.
@@ -77,26 +26,17 @@ import transformers
 if not hasattr(transformers.PreTrainedModel, "_supports_sdpa"):
     transformers.PreTrainedModel._supports_sdpa = True
 
-_boot("loading processor + model...")
-try:
-    processor = AutoProcessor.from_pretrained(
-        MODEL_ID, trust_remote_code=True, token=hf_token
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
-        torch_dtype=torch.float16,  # real GPU path — fp16 is ~6.5GB and fast
-        trust_remote_code=True,
-        token=hf_token,
-        low_cpu_mem_usage=True,
-        attn_implementation="eager",
-    ).to("cuda")
-    _boot("model loaded OK")
-except Exception:
-    import traceback
-    _boot("MODEL LOAD FAILED:")
-    traceback.print_exc()
-    sys.stderr.flush()
-    raise
+processor = AutoProcessor.from_pretrained(
+    MODEL_ID, trust_remote_code=True, token=hf_token
+)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_ID,
+    torch_dtype=torch.float16,  # real GPU path — fp16 is ~6.5GB and fast
+    trust_remote_code=True,
+    token=hf_token,
+    low_cpu_mem_usage=True,
+    attn_implementation="eager",
+).to("cuda")
 
 
 def get_faded_prompt(words, fade_level):
@@ -220,5 +160,5 @@ with gr.Blocks(title="AImage Narrator") as demo:
         "photos with obvious subjects."
     )
 
-_boot("blocks built; launching gradio")
-demo.launch()
+if __name__ == "__main__":
+    demo.launch()

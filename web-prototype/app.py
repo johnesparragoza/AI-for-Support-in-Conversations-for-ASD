@@ -6,6 +6,8 @@ import re
 from gtts import gTTS
 import io
 import os
+import sys
+import time
 
 # fetch the token from environment variables (HF Spaces secrets) or Streamlit Secrets.
 # os.getenv is checked first because HF Spaces exposes secrets as env vars, and
@@ -16,6 +18,24 @@ if not hf_token:
         hf_token = st.secrets.get("HF_TOKEN")
     except Exception:
         hf_token = None
+
+# helper: server-side generation timing ---
+# Logs to the HF Space "Logs" tab only — invisible to end users. Writes to
+# STDERR because HF run logs reliably surface stderr; stdout is block-buffered
+# and can be swallowed. Format is identical to the Gradio app so the two
+# environments can be compared apples-to-apples (same model/prompt/
+# max_new_tokens; only CPU+fp32 vs ZeroGPU+fp16 differ). Delete this and its
+# call sites to strip instrumentation.
+def log_generation_timing(env, model, input_len, output_ids, elapsed):
+    new_tokens = len(output_ids) - input_len if input_len is not None else len(output_ids)
+    tok_per_s = new_tokens / elapsed if elapsed > 0 else float("nan")
+    print(
+        f"[TIMING] env={env} device={model.device} dtype={model.dtype} "
+        f"input_tokens={input_len} new_tokens={new_tokens} "
+        f"elapsed={elapsed:.2f}s tok_per_s={tok_per_s:.2f}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 # helper: fading function ---
 def get_faded_prompt(words, fade_level):
@@ -142,7 +162,12 @@ def load_model():
     
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        # Half precision to fit the 16GB free CPU Space: fp32 weights (~12GB) left
+        # almost no headroom and OOM'd during multi-crop generation. On CPU we use
+        # bfloat16, NOT float16 — torch has no CPU kernels for fp16 matmul/layernorm
+        # ("addmm_impl_cpu_ not implemented for 'Half'"), whereas bf16 is supported.
+        # GPU keeps float16. Either way the model is ~6GB instead of ~12GB.
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.bfloat16,
         trust_remote_code=True,
         token=hf_token,
         low_cpu_mem_usage=True,  # keeps peak RAM near final size; matters on the 16GB CPU Space
@@ -197,9 +222,11 @@ if uploaded_file is not None: # open and display the uploaded image
         # preparing inputs for the model
         inputs = processor(prompt, [image], model, return_tensors="pt")
         inputs = {k: v.to(model.device) if torch.is_tensor(v) else v for k, v in inputs.items()}
+        input_len = inputs["input_ids"].shape[1] if "input_ids" in inputs else None
         # Generate narrative
         with st.spinner("Generating narrative… (first run also downloads the model, ~1 min)"):
             with torch.no_grad():
+                t0 = time.perf_counter()
                 output = model.generate(
                     **inputs,
                     max_new_tokens=64,
@@ -212,6 +239,8 @@ if uploaded_file is not None: # open and display the uploaded image
                     eos_token_id=processor.tokenizer.eos_token_id,
                     pad_token_id=processor.tokenizer.eos_token_id
                 )
+                elapsed = time.perf_counter() - t0
+        log_generation_timing("streamlit-cpu", model, input_len, output[0], elapsed)
         generated_text = processor.tokenizer.decode(output[0], skip_special_tokens=True)
 
         # Extract only the generated narrative

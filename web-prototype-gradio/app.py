@@ -1,13 +1,65 @@
 import os
 import re
+import sys
 import tempfile
+import time
+
+# Force line-buffered, flushed stdout/stderr so HF run logs show our boot
+# progress in real time even if the process later hangs or is killed during
+# startup (Python block-buffers stdout when not attached to a TTY).
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
+
+def _boot(msg):
+    # Write to stderr: HF Spaces run logs surface stderr reliably, whereas
+    # stdout can be swallowed by block buffering.
+    print(f"[BOOT] {msg}", file=sys.stderr, flush=True)
+
+
+_boot("starting imports")
 
 import gradio as gr
 import spaces  # HF ZeroGPU; this import is a no-op outside ZeroGPU environments
 import torch
+
+# --- ZeroGPU pins gradio==4.44.0 (its build recipe overrides README sdk_version),
+# and 4.44.0's bundled gradio_client 1.3.0 crashes get_api_info() with
+#   "TypeError: argument of type 'bool' is not iterable"
+# on gr.Image()'s boolean schema (additionalProperties: true|false). gradio #11084.
+# Short-circuit the schema->type converters on bool schemas. (The companion
+# starlette TemplateResponse incompatibility is fixed by pinning starlette in
+# requirements.txt, not here.)
+import gradio_client.utils as _gc_utils
+
+_orig_json_to_py = _gc_utils._json_schema_to_python_type
+_orig_get_type = _gc_utils.get_type
+
+
+def _safe_json_to_py(schema, defs=None):
+    if isinstance(schema, bool):
+        return "bool"
+    return _orig_json_to_py(schema, defs)
+
+
+def _safe_get_type(schema):
+    if isinstance(schema, bool):
+        return "bool"
+    return _orig_get_type(schema)
+
+
+_gc_utils._json_schema_to_python_type = _safe_json_to_py
+_gc_utils.get_type = _safe_get_type
+_boot("gradio_client patched")
+
 from gtts import gTTS
 from PIL import Image
 from transformers import AutoProcessor, AutoModelForCausalLM
+
+_boot("imports complete")
 
 # HF Spaces exposes secrets as env vars. The token is optional (the model is
 # public) but we pass it through if present to avoid any rate limiting.
@@ -26,17 +78,49 @@ import transformers
 if not hasattr(transformers.PreTrainedModel, "_supports_sdpa"):
     transformers.PreTrainedModel._supports_sdpa = True
 
-processor = AutoProcessor.from_pretrained(
-    MODEL_ID, trust_remote_code=True, token=hf_token
-)
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_ID,
-    torch_dtype=torch.float16,  # real GPU path — fp16 is ~6.5GB and fast
-    trust_remote_code=True,
-    token=hf_token,
-    low_cpu_mem_usage=True,
-    attn_implementation="eager",
-).to("cuda")
+_boot("loading processor + model...")
+try:
+    processor = AutoProcessor.from_pretrained(
+        MODEL_ID, trust_remote_code=True, token=hf_token
+    )
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_ID,
+        torch_dtype=torch.float16,  # real GPU path — fp16 is ~6.5GB and fast
+        trust_remote_code=True,
+        token=hf_token,
+        low_cpu_mem_usage=True,
+        attn_implementation="eager",
+    ).to("cuda")
+    _boot("model loaded OK")
+except Exception:
+    import traceback
+    _boot("MODEL LOAD FAILED:")
+    traceback.print_exc()
+    sys.stderr.flush()
+    raise
+
+
+# --- server-side generation timing ----------------------------------------
+# Logs to the HF Space "Logs" tab only — invisible to end users. Writes to
+# STDERR because HF run logs reliably surface stderr; stdout is block-buffered
+# and can be swallowed. Format is identical to the Streamlit app so the two
+# environments can be compared apples-to-apples (same model/prompt/
+# max_new_tokens; only CPU+fp32 vs ZeroGPU+fp16 differ).
+#
+# IMPORTANT (ZeroGPU): this is called from on_generate (the MAIN gradio process),
+# NOT from inside the @spaces.GPU function. ZeroGPU forks the GPU call into a
+# subprocess whose stderr does not reliably reach the Space run logs, so the
+# timing is measured inside the GPU function and returned, then logged here.
+# Delete this and its call site to strip instrumentation.
+def log_generation_timing(env, device, dtype, input_len, new_tokens, elapsed):
+    tok_per_s = new_tokens / elapsed if elapsed > 0 else float("nan")
+    print(
+        f"[TIMING] env={env} device={device} dtype={dtype} "
+        f"input_tokens={input_len} new_tokens={new_tokens} "
+        f"elapsed={elapsed:.2f}s tok_per_s={tok_per_s:.2f}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def get_faded_prompt(words, fade_level):
@@ -71,7 +155,13 @@ def _generate_narrative(image, caption):
         k: v.to(model.device) if torch.is_tensor(v) else v
         for k, v in inputs.items()
     }
+    input_len = inputs["input_ids"].shape[1] if "input_ids" in inputs else None
     with torch.no_grad():
+        # CUDA kernels are async; sync before/after so elapsed reflects real GPU
+        # completion, not just the launch-return time.
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        t0 = time.perf_counter()
         output = model.generate(
             **inputs,
             max_new_tokens=64,
@@ -80,17 +170,35 @@ def _generate_narrative(image, caption):
             eos_token_id=processor.tokenizer.eos_token_id,
             pad_token_id=processor.tokenizer.eos_token_id,
         )
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        elapsed = time.perf_counter() - t0
+    new_tokens = len(output[0]) - input_len if input_len is not None else len(output[0])
     generated_text = processor.tokenizer.decode(output[0], skip_special_tokens=True)
     parts = re.split(r"<\|im_start\|>assistant", generated_text)
     narrative = parts[-1] if len(parts) > 1 else generated_text
-    return narrative.replace("<|im_end|>", "").strip()
+    narrative = narrative.replace("<|im_end|>", "").strip()
+    # Return timing metrics so the MAIN process (on_generate) can log them; see
+    # log_generation_timing for why we can't log from inside this GPU subprocess.
+    timing = {
+        "device": str(model.device),
+        "dtype": str(model.dtype),
+        "input_len": input_len,
+        "new_tokens": new_tokens,
+        "elapsed": elapsed,
+    }
+    return narrative, timing
 
 
 # --- Gradio event handlers (run on CPU; only _generate_narrative hits GPU) -
 def on_generate(image, caption):
     if image is None:
         raise gr.Error("Please upload an image first.")
-    narrative = _generate_narrative(image.convert("RGB"), caption or " ")
+    narrative, t = _generate_narrative(image.convert("RGB"), caption or " ")
+    log_generation_timing(
+        "gradio-zerogpu", t["device"], t["dtype"],
+        t["input_len"], t["new_tokens"], t["elapsed"],
+    )
     words = narrative.split()
     return (
         narrative,                                   # state: full narrative
@@ -160,5 +268,5 @@ with gr.Blocks(title="AImage Narrator") as demo:
         "photos with obvious subjects."
     )
 
-if __name__ == "__main__":
-    demo.launch()
+_boot("blocks built; launching gradio")
+demo.launch()

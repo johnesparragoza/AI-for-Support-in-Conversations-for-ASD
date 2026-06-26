@@ -4,6 +4,10 @@
 # require numpy<2, so numpy/pandas are pinned to a compatible 1.26 / 2.2 pair.
 streamlit>=1.58.0  # keep — needed for st.image(width='stretch')
 transformers==4.40.2
+# Pin huggingface_hub <1.0: transformers 4.40.2 imports symbols from hf_hub that
+# were removed in hf_hub 1.x (2026). Left unpinned, a fresh build pulls hf_hub 1.x
+# and transformers' __init__ fails with "cannot import name 'AutoProcessor'".
+huggingface_hub==0.23.4
 tokenizers==0.19.1
 torch==2.2.2
 torchvision==0.17.2

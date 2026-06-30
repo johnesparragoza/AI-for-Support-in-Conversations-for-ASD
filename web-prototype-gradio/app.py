@@ -1,3 +1,4 @@
+import base64
 import os
 import re
 import sys
@@ -123,6 +124,23 @@ def log_generation_timing(env, device, dtype, input_len, new_tokens, elapsed):
     )
 
 
+def _mascot_data_uri():
+    """Return puzzle-buddy.png as a base64 data URI, or '' if it's missing.
+
+    Embedding the mascot inline (rather than via gr.Image) lets us style it
+    freely inside the welcome HTML and avoids Gradio's image-component chrome
+    (upload/download buttons, borders). Returns '' so the template can simply
+    omit the <img> if the asset isn't present.
+    """
+    path = os.path.join(os.path.dirname(__file__), "puzzle-buddy.png")
+    try:
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+        return f"data:image/png;base64,{b64}"
+    except Exception:
+        return ""
+
+
 def get_faded_prompt(words, fade_level):
     """Return the narrative with the last `fade_level` words replaced by blanks."""
     if fade_level <= 0:
@@ -223,26 +241,134 @@ def on_read_aloud(narrative):
     return fp.name
 
 
-with gr.Blocks(title="AImage Narrator") as demo:
-    gr.Markdown(
-        "# AImage Narrator 🪄\n"
-        "Upload an image, get a friendly first-person narrative, then practice "
-        "by fading words out."
+# --- Friendly, ASD-accessible theme & styling -----------------------------
+# Mirrors the welcoming look of the Streamlit web-prototype: a calming green
+# palette, the rounded "Chewy" display font for the title, the puzzle-buddy
+# mascot, and a fluffy cloud "How it works" card. Soft base theme gives us the
+# rounded corners / gentle shadows; the rest is layered on via custom CSS so it
+# reads the same in Gradio 4.44.0 as it does in Streamlit.
+THEME = gr.themes.Soft(
+    primary_hue="green",
+    secondary_hue="green",
+    neutral_hue="slate",
+    font=[gr.themes.GoogleFont("Quicksand"), "ui-sans-serif", "system-ui", "sans-serif"],
+).set(
+    body_background_fill="#f4faf4",
+    button_large_radius="18px",
+    button_small_radius="14px",
+    block_radius="20px",
+    block_shadow="0 8px 20px rgba(0,0,0,0.06)",
+)
+
+CUSTOM_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Chewy&display=swap');
+
+.gradio-container { max-width: 920px !important; margin: 0 auto !important; }
+
+/* Welcome header */
+#app-header { text-align: center; padding: 1.6rem 0 0.4rem 0; }
+#app-header h1 {
+    font-family: 'Chewy', cursive;
+    color: #2E7D32;
+    font-size: 2.9rem;
+    margin: 0;
+    line-height: 1.1;
+}
+#app-header p { font-size: 1.25rem; color: #37474F; margin: 0.5rem 0 0 0; }
+
+/* Intro: mascot + cloud "how it works" card */
+#intro-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    padding: 1.2rem 0 0.5rem 0;
+}
+#intro-row .mascot { width: 160px; max-width: 30vw; height: auto; }
+.cloud-card {
+    position: relative;
+    background: #ffffff;
+    border-radius: 90px;
+    padding: 2rem 2.6rem;
+    max-width: 460px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+}
+.cloud-card::before {
+    content: ""; position: absolute; z-index: -1; background: #ffffff;
+    border-radius: 50%; width: 95px; height: 95px; top: -35px; left: 55px;
+    box-shadow: 130px -12px 0 12px #fff, 270px 4px 0 -6px #fff;
+}
+.cloud-card::after {
+    content: ""; position: absolute; z-index: -1; background: #ffffff;
+    border-radius: 50%; width: 75px; height: 75px; bottom: -28px; right: 60px;
+    box-shadow: -150px 16px 0 6px #fff, -320px 6px 0 -8px #fff;
+}
+.cloud-card h3 {
+    font-family: 'Chewy', cursive; color: #2E7D32;
+    text-align: center; margin: 0 0 0.8rem 0; font-size: 1.4rem;
+}
+.cloud-card ul { list-style: none; padding: 0; margin: 0; }
+.cloud-card li {
+    font-size: 1.08rem; line-height: 1.6; margin: 0.5rem 0; color: #37474F;
+}
+
+/* Make the practice-prompt box read like the calm green "success" panel
+   the Streamlit app uses, so the part learners focus on stands out gently. */
+#practice-box textarea {
+    background: #e8f5e9 !important;
+    color: #1b5e20 !important;
+    font-size: 1.3rem !important;
+    line-height: 1.7 !important;
+    border-radius: 16px !important;
+    text-align: center;
+}
+#footer-note { text-align: center; color: #607D8B; padding-top: 0.5rem; }
+"""
+
+_mascot_uri = _mascot_data_uri()
+_mascot_html = (
+    f"<img class='mascot' src='{_mascot_uri}' alt='Puzzle Buddy mascot'/>"
+    if _mascot_uri
+    else ""
+)
+
+with gr.Blocks(title="AImage Narrator", theme=THEME, css=CUSTOM_CSS) as demo:
+    gr.HTML(
+        "<div id='app-header'>"
+        "<h1>AImage Narrator 🪄</h1>"
+        "<p>Welcome! Upload your image and get a friendly, narrated description.</p>"
+        "</div>"
+        "<div id='intro-row'>"
+        f"{_mascot_html}"
+        "<div class='cloud-card'>"
+        "<h3>How it works ☁️</h3>"
+        "<ul>"
+        "<li>📷 Upload a photo or take a picture.</li>"
+        "<li>✨ The AI writes a short, friendly narrative.</li>"
+        "<li>🧩 Practice filling in the blanks as words fade out.</li>"
+        "<li>🎉 Enjoy!</li>"
+        "</ul>"
+        "</div>"
+        "</div>"
     )
 
     narrative_state = gr.State("")
 
-    with gr.Row():
+    with gr.Row(equal_height=False):
         with gr.Column():
-            image_in = gr.Image(type="pil", label="Upload an image (jpg, jpeg, png)")
+            image_in = gr.Image(type="pil", label="📷 Upload an image (jpg, jpeg, png)")
             caption_in = gr.Textbox(
                 label="Optional: add your own caption",
                 placeholder="Leave blank for an automatic caption.",
             )
-            generate_btn = gr.Button("Generate narrative", variant="primary")
+            generate_btn = gr.Button("✨ Generate narrative", variant="primary", size="lg")
         with gr.Column():
             practice_box = gr.Textbox(
-                label="Your Practice Prompt", visible=False, interactive=False
+                label="🧩 Your Practice Prompt",
+                visible=False,
+                interactive=False,
+                elem_id="practice-box",
             )
             fade_slider = gr.Slider(
                 label="Fade words (drag right to hide more from the end)",
@@ -263,9 +389,9 @@ with gr.Blocks(title="AImage Narrator") as demo:
     )
     read_btn.click(on_read_aloud, inputs=[narrative_state], outputs=[audio_out])
 
-    gr.Markdown(
-        "---\nPowered by MC-LLaVA-3b on ZeroGPU. For best results, use clear "
-        "photos with obvious subjects."
+    gr.HTML(
+        "<div id='footer-note'>Powered by MC-LLaVA-3b on ZeroGPU. "
+        "For best results, use clear photos with obvious subjects.</div>"
     )
 
 _boot("blocks built; launching gradio")

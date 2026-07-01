@@ -253,7 +253,7 @@ THEME = gr.themes.Soft(
     neutral_hue="slate",
     font=[gr.themes.GoogleFont("Quicksand"), "ui-sans-serif", "system-ui", "sans-serif"],
 ).set(
-    body_background_fill="#f4faf4",
+    body_background_fill="#ffffff",
     button_large_radius="18px",
     button_small_radius="14px",
     block_radius="20px",

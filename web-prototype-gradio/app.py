@@ -158,15 +158,16 @@ def get_faded_prompt(words, fade_level):
 @spaces.GPU(duration=60)
 def _generate_narrative(image, caption):
     prompt = (
-        "<|im_start|>user\n"
+         "<|im_start|>user\n"
         "<image>\n"
-        "Describe this image with a single first-person sentence.\n"
-        "Make it short and simple, no more than 10 words.\n"
-        "Use first-person perspective (e.g., 'I see...', 'I feel...').\n"
-        f"Caption: {caption}\n"
-        "Narrative:\n"
+        "Describe this image in one short first-person sentence, as if YOU are "
+        "the person in the picture doing the action.\n"
+        "Examples: 'I am riding my bike.' 'I am baking cookies.' 'I am playing in the park.'\n"
+        "Keep it under 10 words.\n"
+        "Caption: {caption}\n"
         "<|im_end|>\n"
         "<|im_start|>assistant\n"
+        "I"
     )
     inputs = processor(prompt, [image], model, return_tensors="pt")
     inputs = {
@@ -324,6 +325,11 @@ CUSTOM_CSS = """
     text-align: center;
 }
 #footer-note { text-align: center; color: #607D8B; padding-top: 0.5rem; }
+
+/* Safety net: keep text readable (dark) even if a dark-mode preference slips
+   through before the force-light redirect applies. */
+.gradio-container textarea,
+.gradio-container input[type="text"] { color: #263238 !important; }
 """
 
 _mascot_uri = _mascot_data_uri()
@@ -333,7 +339,22 @@ _mascot_html = (
     else ""
 )
 
-with gr.Blocks(title="AImage Narrator", theme=THEME, css=CUSTOM_CSS) as demo:
+# Pin the app to light mode. The Soft theme keeps dark-mode's white text even
+# though we force a white background, which makes text invisible for viewers
+# whose browser/OS prefers dark mode. Forcing ?__theme=light keeps text dark.
+_FORCE_LIGHT_JS = """
+() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('__theme') !== 'light') {
+        url.searchParams.set('__theme', 'light');
+        window.location.replace(url.href);
+    }
+}
+"""
+
+with gr.Blocks(
+    title="AImage Narrator", theme=THEME, css=CUSTOM_CSS, js=_FORCE_LIGHT_JS
+) as demo:
     gr.HTML(
         "<div id='app-header'>"
         "<h1>AImage Narrator 🪄</h1>"
